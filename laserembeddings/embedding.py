@@ -24,6 +24,7 @@ class BPESentenceEmbedding:
 
     def __init__(self,
                  encoder: Union[str, BufferedIOBase],
+                 spm_vocab: Optional[str] = None,
                  max_sentences: Optional[int] = None,
                  max_tokens: Optional[int] = 12000,
                  stable: bool = False,
@@ -33,6 +34,7 @@ class BPESentenceEmbedding:
             encoder,
             max_sentences=max_sentences,
             max_tokens=max_tokens,
+            spm_vocab=spm_vocab,
             sort_kind='mergesort' if stable else 'quicksort',
             cpu=cpu)
 

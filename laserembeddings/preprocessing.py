@@ -3,6 +3,7 @@ from io import TextIOBase
 
 from sacremoses import MosesPunctNormalizer, MosesTokenizer
 from sacremoses.util import xml_unescape
+import sentencepiece as spm
 from subword_nmt.apply_bpe import BPE as subword_nmt_bpe, read_vocabulary
 from transliterate import translit
 
@@ -21,7 +22,7 @@ try:
 except ImportError:
     MeCab = None
 
-__all__ = ['Tokenizer', 'BPE']
+__all__ = ['Tokenizer', 'BPE', 'SPM']
 
 ###############################################################################
 #
@@ -48,7 +49,8 @@ class Tokenizer:
                  lang: str = 'en',
                  lower_case: bool = True,
                  romanize: Optional[bool] = None,
-                 descape: bool = False):
+                 descape: bool = False,
+                 spm: bool = False):
         assert lower_case, 'lower case is needed by all the models'
 
         if lang in ('cmn', 'wuu', 'yue'):
@@ -69,6 +71,7 @@ class Tokenizer:
         self.lower_case = lower_case
         self.romanize = romanize if romanize is not None else lang == 'el'
         self.descape = descape
+        self.spm = spm
 
         self.normalizer = MosesPunctNormalizer(lang=lang)
         self.tokenizer = MosesTokenizer(lang=lang)
@@ -88,12 +91,13 @@ class Tokenizer:
         if self.descape:
             text = xml_unescape(text)
 
-        # MOSES_TOKENIZER
-        # see: https://github.com/facebookresearch/LASER/issues/55#issuecomment-480881573
-        text = self.tokenizer.tokenize(text,
-                                       return_str=True,
-                                       escape=False,
-                                       aggressive_dash_splits=False)
+        if not self.spm:
+            # MOSES_TOKENIZER
+            # see: https://github.com/facebookresearch/LASER/issues/55#issuecomment-480881573
+            text = self.tokenizer.tokenize(text,
+                                           return_str=True,
+                                           escape=False,
+                                           aggressive_dash_splits=False)
 
         # jieba
         if self.lang == 'zh':
@@ -159,3 +163,30 @@ class BPE:
     def encode_tokens(self, sentence_tokens: str) -> str:
         """Returns the BPE-encoded sentence from a tokenized sentence"""
         return self.bpe.process_line(sentence_tokens)
+
+
+###############################################################################
+#
+# Apply SPM
+#
+###############################################################################
+
+
+class SPM:
+    """
+    SPM encoder.
+
+    Args:
+        spm_codes (str or TextIOBase): the path to LASER's spm codes (``xxx.spm``),
+            or a text-mode file object.
+    """
+
+    def __init__(self, spm_model: Union[str, TextIOBase]):
+        try:
+            self.spm = spm.SentencePieceProcessor(model_file=spm_model)
+        except Exception:
+            raise
+
+    def encode_tokens(self, sentence_tokens: str) -> str:
+        """Returns the spm-encoded sentence from a tokenized sentence"""
+        return " ".join(self.spm.encode(sentence_tokens, out_type=str))
